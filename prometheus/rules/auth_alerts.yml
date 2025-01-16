@@ -1,0 +1,20 @@
+groups:
+  - name: auth_service_alerts
+    rules:
+      - alert: HighLoginFailureRate
+        expr: rate(auth_login_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High login failure rate"
+          description: "Login failures are higher than normal"
+
+      - alert: HighResponseTime
+        expr: http_server_requests_seconds_max > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time"
+          description: "API response time is too high"
