@@ -1,75 +1,51 @@
 package com.example.authservice.service;
 
+import com.example.authservice.dto.UserLoginRequest;
 import com.example.authservice.dto.UserRegistrationRequest;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.resource.RealmResource;
-import org.keycloak.admin.client.resource.UsersResource;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.representations.idm.CredentialRepresentation;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import javax.ws.rs.core.Response;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
+@Service
 public class KeycloakService {
 
-    @Mock
-    private Keycloak keycloak;
+    private final Keycloak keycloak;
 
-    @Mock
-    private RealmResource realmResource;
+    @Value("${keycloak.realm}")
+    private String realm;
 
-    @Mock
-    private UsersResource usersResource;
-
-    @Mock
-    private Response response;
-
-    @InjectMocks
-    private KeycloakService keycloakService;
-
-    @BeforeEach
-    void setUp() {
-        when(keycloak.realm(anyString())).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
+    public KeycloakService(Keycloak keycloak) {
+        this.keycloak = keycloak;
     }
 
-    @Test
-    void createUser_Success() {
-        // Arrange
-        UserRegistrationRequest request = new UserRegistrationRequest();
-        request.setUsername("testuser");
-        request.setEmail("test@example.com");
-        request.setPassword("password");
+    public void createUser(UserRegistrationRequest request) {
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        user.setEnabled(true);
 
-        when(usersResource.create(any())).thenReturn(response);
-        when(response.getStatus()).thenReturn(201);
+        CredentialRepresentation credential = new CredentialRepresentation();
+        credential.setType(CredentialRepresentation.PASSWORD);
+        credential.setValue(request.getPassword());
+        credential.setTemporary(false);
 
-        // Act & Assert
-        assertDoesNotThrow(() -> keycloakService.createUser(request));
-        verify(usersResource).create(any());
+        keycloak.realm(realm).users().create(user);
     }
 
-    @Test
-    void createUser_Failure() {
-        // Arrange
-        UserRegistrationRequest request = new UserRegistrationRequest();
-        request.setUsername("testuser");
-        request.setEmail("test@example.com");
-        request.setPassword("password");
-
-        when(usersResource.create(any())).thenReturn(response);
-        when(response.getStatus()).thenReturn(400);
-
-        // Act & Assert
-        assertThrows(RuntimeException.class, () -> keycloakService.createUser(request));
+    public String login(UserLoginRequest request) {
+        try {
+            Keycloak userKeycloak = Keycloak.getInstance(
+                    keycloak.getServerInfo().getInfo().get("serverUrl").toString(),
+                    realm,
+                    request.getUsername(),
+                    request.getPassword(),
+                    "auth-client"
+            );
+            return userKeycloak.tokenManager().getAccessTokenString();
+        } catch (Exception e) {
+            throw new RuntimeException("Authentication failed", e);
+        }
     }
 }
